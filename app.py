@@ -6,13 +6,14 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
 
+
 BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
 
 st.set_page_config(page_title="AI CV Matcher", layout="wide")
 
 
 # =====================================================================
-# ✅ PDF GENERATION
+# ✅ PDF GENERATOR
 # =====================================================================
 def generate_pdf(candidate):
     buffer = BytesIO()
@@ -33,8 +34,9 @@ def generate_pdf(candidate):
         c.drawString(x, y, text)
         y -= spacing
 
+    # Header
     line(f"AI CV Match Report – {cv['name']}", 16, 24)
-    line(f"Match Score: {score} / 100", 14, 20)
+    line(f"Match Score: {score} / 100", 14, 22)
     line("")
 
     line("Candidate Information:", 14, 20)
@@ -63,8 +65,8 @@ def generate_pdf(candidate):
         line("")
 
     line("Scoring Breakdown:", 14, 20)
-    line(f"• Required Skills Match: {round(details.get('required_ratio', 0)*100)}%")
-    line(f"• Optional Skills Match: {round(details.get('optional_ratio', 0)*100)}%")
+    line(f"• Required Skills Match: {round(details.get('required_ratio', 0) * 100)} %")
+    line(f"• Optional Skills Match: {round(details.get('optional_ratio', 0) * 100)} %")
     line(f"• Experience Score: {round(details.get('experience_score', 0))}/20")
     line(f"• Seniority Score: {round(details.get('seniority_score', 0))}/10")
 
@@ -75,25 +77,25 @@ def generate_pdf(candidate):
 
 
 # =====================================================================
-# ✅ INIT SESSION STATE
+# ✅ SESSION STATE
 # =====================================================================
 if "results" not in st.session_state:
     st.session_state.results = []
 
 
 # =====================================================================
-# ✅ SIDEBAR (JD INPUT)
+# ✅ SIDEBAR – JD INPUT
 # =====================================================================
 st.sidebar.header("📄 Job Description")
 jd_text = st.sidebar.text_area(
     "Paste the Job Description here:",
-    placeholder="Example: Backend Developer with Python, SQL…",
+    placeholder="Example: Junior Backend Developer with Python, SQL…",
     height=300
 )
 
 
 # =====================================================================
-# ✅ UPLOAD CVs
+# ✅ FILE UPLOAD
 # =====================================================================
 uploaded_files = st.file_uploader(
     "Upload one or more CVs (PDF / DOCX):",
@@ -105,7 +107,7 @@ analyze_btn = st.button("🚀 Analyze CVs", use_container_width=True)
 
 
 # =====================================================================
-# ✅ ANALYSIS LOGIC
+# ✅ ANALYSIS
 # =====================================================================
 if analyze_btn:
     if not uploaded_files:
@@ -118,7 +120,7 @@ if analyze_btn:
 
     out = []
 
-    with st.spinner("Analyzing CVs… this may take a moment ⏳"):
+    with st.spinner("Analyzing CVs… ⏳"):
         for f in uploaded_files:
             files = {"file": (f.name, f.getvalue())}
             data = {"jd": jd_text}
@@ -126,11 +128,11 @@ if analyze_btn:
             try:
                 r = requests.post(BACKEND_URL, files=files, data=data)
             except Exception as e:
-                st.error(f"Backend error for {f.name}: {e}")
+                st.error(f"Backend unreachable for file {f.name}: {e}")
                 continue
 
             if r.status_code != 200:
-                st.error(f"Error processing {f.name}: {r.text}")
+                st.error(f"❌ Error processing {f.name}: {r.text}")
             else:
                 parsed = r.json()
                 parsed["filename"] = f.name
@@ -147,13 +149,15 @@ results = st.session_state.results
 if results:
     st.success("✅ Analysis complete!")
 
-    rows = [{
-        "File": r["filename"],
-        "Name": r["cv_data"]["name"],
-        "Score": r["match_score"],
-        "Experience (yrs)": r["cv_data"]["years_experience"],
-        "Technologies": ", ".join(r["cv_data"]["technologies"])
-    } for r in results]
+    rows = []
+    for r in results:
+        rows.append({
+            "File": r["filename"],
+            "Name": r["cv_data"]["name"],
+            "Score": r["match_score"],
+            "Experience (yrs)": r["cv_data"]["years_experience"],
+            "Technologies": ", ".join(r["cv_data"]["technologies"]),
+        })
 
     df = pd.DataFrame(rows)
 
@@ -167,16 +171,16 @@ if results:
 
 
     # =================================================================
-    # ✅ CANDIDATE DETAIL
+    # ✅ CANDIDATE DETAIL (fixed: now selects by filename)
     # =================================================================
     st.subheader("🔍 Candidate Detail")
 
-    selected_name = st.selectbox(
+    selected_file = st.selectbox(
         "Select a candidate:",
-        df["Name"].tolist()
+        df["File"].tolist()
     )
 
-    candidate = next(r for r in results if r["cv_data"]["name"] == selected_name)
+    candidate = next(r for r in results if r["filename"] == selected_file)
     c = candidate["cv_data"]
 
     st.markdown(f"### 👤 {c['name']}")
@@ -185,7 +189,6 @@ if results:
     st.write(f"**Experience:** {c['years_experience']} years")
     st.write(f"**Seniority:** {c['seniority']}")
     st.write(f"**Last Position:** {c['last_position']}")
-    st.write("")
 
     st.markdown("#### 🧩 Technologies")
     st.write(", ".join(c["technologies"]))
@@ -196,14 +199,14 @@ if results:
     st.markdown("#### 📝 Summary")
     st.info(candidate["summary"])
 
+
     # =================================================================
-    # ✅ SCORING BREAKDOWN v2.0 (FULL AI EXPLANATION)
+    # ✅ SCORING BREAKDOWN v2.0
     # =================================================================
     st.subheader("📈 Scoring Breakdown (v2.0)")
-    
+
     details = candidate.get("details", {})
-    
-    # REAL values from v3.0 scoring
+
     required_ratio = details.get("required_ratio", 0)
     optional_ratio = details.get("optional_ratio", 0)
     req_score = details.get("required_score", required_ratio * 60)
@@ -211,8 +214,7 @@ if results:
     exp_score = details.get("experience_score", 0)
     sen_score = details.get("seniority_score", 0)
     final_score = candidate["match_score"]
-    
-    # TOP METRICS
+
     colA, colB, colC = st.columns(3)
     with colA:
         st.metric("Required Match", f"{round(required_ratio * 100)}%", f"{round(req_score)}/60")
@@ -220,60 +222,55 @@ if results:
         st.metric("Optional Match", f"{round(optional_ratio * 100)}%", f"{round(opt_score)}/10")
     with colC:
         st.metric("Final Score", f"{final_score} / 100")
-    
+
     colD, colE = st.columns(2)
     with colD:
         st.metric("Experience Score", f"{round(exp_score)}/20")
     with colE:
         st.metric("Seniority Score", f"{round(sen_score)}/10")
-    
-    
+
+
     # =================================================================
-    # ✅ REQUIRED SKILL SIMILARITY TABLE
+    # ✅ REQUIRED SKILLS TABLE
     # =================================================================
-    st.markdown("### 🧩 Required Skill Match (AI Embedding Similarity)")
-    
-    cv_norm = candidate["cv_data"].get("technologies_normalized", [])
-    jd_req = candidate["jd_data"].get("required_skills", []) if candidate["jd_data"] else []
-    
-    rows = []
+    st.markdown("### 🧩 Required Skills Match")
+
+    jd_req = candidate["jd_data"]["required_skills"] if candidate["jd_data"] else []
+    cv_raw = candidate["cv_data"]["technologies"]
+
+    rows_req = []
     for skill in jd_req:
-        rows.append({
+        matched = any(skill.lower() in t.lower() for t in cv_raw)
+        rows_req.append({
             "JD Required Skill": skill,
-            "Matched": "✅ Yes" if any(skill.lower() == s.lower() for s in cv_norm) else "❌ No",
+            "Matched": "✅ Yes" if matched else "❌ No"
         })
-    
-    st.table(pd.DataFrame(rows))
-    
-    
+
+    st.table(pd.DataFrame(rows_req))
+
+
     # =================================================================
-    # ✅ OPTIONAL SKILL MATCH TABLE
+    # ✅ OPTIONAL SKILLS TABLE
     # =================================================================
-    st.markdown("### 🧩 Nice-to-Have Skills (AI Matching)")
-    
-    jd_opt = candidate["jd_data"].get("nice_to_have_skills", []) if candidate["jd_data"] else []
-    
-    rows2 = []
+    st.markdown("### 🧩 Nice-to-Have Skills Match")
+
+    jd_opt = candidate["jd_data"]["nice_to_have_skills"] if candidate["jd_data"] else []
+
+    rows_opt = []
     for skill in jd_opt:
-        rows2.append({
+        matched = any(skill.lower() in t.lower() for t in cv_raw)
+        rows_opt.append({
             "JD Optional Skill": skill,
-            "Matched": "✅ Yes" if any(skill.lower() == s.lower() for s in cv_norm) else "❌ No",
+            "Matched": "✅ Yes" if matched else "❌ No"
         })
-    
-    st.table(pd.DataFrame(rows2))
-    
-    
-    # =================================================================
-    # ✅ AI DEBUG DETAILS (Embedding similarities)
-    # =================================================================
-    with st.expander("🔬 AI Embedding Details (Debug)"):
-        st.json(details)
+
+    st.table(pd.DataFrame(rows_opt))
 
 
     # =================================================================
     # ✅ PDF EXPORT
     # =================================================================
-    st.subheader("📄 Export PDF")
+    st.subheader("📄 Export PDF Report")
     pdf_buffer = generate_pdf(candidate)
 
     st.download_button(
