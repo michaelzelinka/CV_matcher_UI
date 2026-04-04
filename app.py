@@ -283,6 +283,38 @@ if results:
 
     st.table(pd.DataFrame(rows_opt))
 
+    # =================================================================
+    # ✅ MISSING SKILLS PANEL
+    # =================================================================
+    st.subheader("❗ Missing Skills")
+    
+    jd_required = candidate["jd_data"]["required_skills"] if candidate["jd_data"] else []
+    cv_raw = candidate["cv_data"]["technologies"]
+    
+    missing_required = []
+    for skill in jd_required:
+        if not any(skill.lower() in t.lower() for t in cv_raw):
+            missing_required.append(skill)
+    
+    if missing_required:
+        st.markdown("### Missing Required Skills")
+        st.warning(", ".join(missing_required))
+    else:
+        st.markdown("✅ Candidate meets all required skills!")
+    
+    jd_optional = candidate["jd_data"]["nice_to_have_skills"] if candidate["jd_data"] else []
+    
+    missing_optional = []
+    for skill in jd_optional:
+        if not any(skill.lower() in t.lower() for t in cv_raw):
+            missing_optional.append(skill)
+    
+    if missing_optional:
+        st.markdown("### Missing Optional Skills")
+        st.info(", ".join(missing_optional))
+    else:
+        st.markdown("✅ Candidate matches all optional skills!")
+
 
     # =================================================================
     # ✅ PDF EXPORT
@@ -296,6 +328,72 @@ if results:
         file_name=f"{cv['name'].replace(' ', '_')}_report.pdf",
         mime="application/pdf"
     )
+
+    # =================================================================
+    # ✅ CANDIDATE COMPARISON
+    # =================================================================
+    st.subheader("🆚 Compare Candidates")
+    
+    if len(results) > 1:
+    
+        col1, col2 = st.columns(2)
+    
+        with col1:
+            compare_left = st.selectbox(
+                "Select Candidate A",
+                [r["filename"] for r in results],
+                key="compare_left"
+            )
+    
+        with col2:
+            compare_right = st.selectbox(
+                "Select Candidate B",
+                [r["filename"] for r in results],
+                key="compare_right"
+            )
+    
+        if compare_left != compare_right:
+            candA = next(r for r in results if r["filename"] == compare_left)
+            candB = next(r for r in results if r["filename"] == compare_right)
+    
+            st.markdown("### 🔄 Comparison Overview")
+    
+            table = pd.DataFrame([
+                {
+                    "Attribute": "Score",
+                    candA["cv_data"]["name"]: candA["match_score"],
+                    candB["cv_data"]["name"]: candB["match_score"]
+                },
+                {
+                    "Attribute": "Experience (yrs)",
+                    candA["cv_data"]["name"]: candA["cv_data"]["years_experience"],
+                    candB["cv_data"]["name"]: candB["cv_data"]["years_experience"]
+                },
+                {
+                    "Attribute": "Seniority",
+                    candA["cv_data"]["name"]: candA["cv_data"]["seniority"],
+                    candB["cv_data"]["name"]: candB["cv_data"]["seniority"]
+                },
+            ])
+    
+            st.table(table)
+    
+            # MISSING SKILLS for each
+            def missing_skills(cand):
+                jd_req = cand["jd_data"]["required_skills"]
+                techs = cand["cv_data"]["technologies"]
+                return [s for s in jd_req if not any(s.lower() in t.lower() for t in techs)]
+    
+            st.markdown("### ❗ Missing Required Skills Comparison")
+            comp_table = pd.DataFrame([
+                {
+                    "Missing Required Skill": skill,
+                    candA["cv_data"]["name"]: "❌" if skill in missing_skills(candA) else "✅",
+                    candB["cv_data"]["name"]: "❌" if skill in missing_skills(candB) else "✅",
+                }
+                for skill in candidate["jd_data"]["required_skills"]
+            ])
+            st.table(comp_table)
 
 
     # =================================================================
