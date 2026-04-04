@@ -1,11 +1,11 @@
 import streamlit as st
 import requests
 import pandas as pd
+import csv
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
-import csv
 
 
 # =====================================================================
@@ -16,7 +16,7 @@ st.set_page_config(page_title="AI CV Matcher", layout="wide")
 
 
 # =====================================================================
-# ✅ PDF GENERATOR (single-candidate full report)
+# ✅ PDF GENERATOR — single candidate report
 # =====================================================================
 def generate_pdf(candidate):
     buffer = BytesIO()
@@ -38,14 +38,14 @@ def generate_pdf(candidate):
         y -= spacing
 
     line(f"AI CV Match Report – {cv['name']}", 16, 24)
-    line(f"Match Score: {score} / 100", 14, 22)
+    line(f"Match Score: {score} / 100", 14, 20)
     line("")
 
     line("Candidate Information:", 14, 20)
     line(f"• Name: {cv['name']}")
     line(f"• Email: {cv['email']}")
     line(f"• Phone: {cv['phone']}")
-    line(f"• Experience: {cv['years_experience']} years")
+    line(f"• Experience: {cv['years_experience']}")
     line(f"• Seniority: {cv['seniority']}")
     line(f"• Last Position: {cv['last_position']}")
     line("")
@@ -79,53 +79,48 @@ def generate_pdf(candidate):
 
 
 # =====================================================================
-# ✅ AI COMMENT: WHY THIS SCORE?
+# ✅ AI COMMENT — WHY THIS SCORE?
 # =====================================================================
 def generate_ai_comment(candidate):
     d = candidate.get("details", {})
     score = candidate.get("match_score", 0)
 
-    reasons = []
+    parts = []
 
-    # Required skills logic
     if d.get("required_ratio", 0) == 0:
-        reasons.append("Candidate does not match any required hard skills.")
+        parts.append("Candidate does not match any required hard skills.")
     else:
-        reasons.append("Candidate matches some required technical skills.")
+        parts.append("Candidate matches some required technical skills.")
 
-    # Optional skills logic
     if d.get("optional_ratio", 0) > 0:
-        reasons.append("Candidate matches some nice‑to‑have skills.")
+        parts.append("Candidate matches some optional skills.")
     else:
-        reasons.append("No optional skills matched.")
+        parts.append("No optional skills matched.")
 
-    # Experience logic
     if d.get("experience_score", 0) == 10:
-        reasons.append("Experience fallback applied (trainee-level or unclear requirement).")
+        parts.append("Experience fallback applied (trainee-level role or unclear requirement).")
     elif d.get("experience_score", 0) == 0:
-        reasons.append("Experience level does not match the expected seniority.")
+        parts.append("Experience level does not meet role expectations.")
 
-    # Seniority logic
     if d.get("seniority_score", 0) == 10:
-        reasons.append("Seniority matches job expectations.")
+        parts.append("Seniority matches job expectations.")
     else:
-        reasons.append("Seniority differs from the role requirement.")
+        parts.append("Seniority differs from the role requirement.")
 
-    # Final summary
     if score < 20:
-        summary = "Overall, the candidate has low alignment with the job requirements."
+        summary = "Overall, the candidate has poor alignment with the job requirements."
     elif score < 40:
-        summary = "Overall, the candidate shows partial alignment with the role."
+        summary = "Overall, the candidate shows partial alignment."
     elif score < 70:
         summary = "Overall, the candidate is a moderate match."
     else:
         summary = "Overall, the candidate is a strong match."
 
-    return summary + " " + " ".join(reasons)
+    return summary + " " + " ".join(parts)
 
 
 # =====================================================================
-# ✅ EXPORT ALL CANDIDATES – CSV
+# ✅ EXPORT — CSV for ALL candidates
 # =====================================================================
 def export_all_candidates_to_csv(results):
     output = BytesIO()
@@ -134,7 +129,8 @@ def export_all_candidates_to_csv(results):
     writer.writerow([
         "Filename", "Name", "Email", "Phone",
         "Experience (yrs)", "Seniority",
-        "Technologies", "Languages", "Score"
+        "Technologies", "Languages",
+        "Score"
     ])
 
     for r in results:
@@ -156,7 +152,7 @@ def export_all_candidates_to_csv(results):
 
 
 # =====================================================================
-# ✅ EXPORT ALL CANDIDATES – MULTI-PDF
+# ✅ EXPORT — Multi‑PDF for ALL candidates
 # =====================================================================
 def export_all_candidates_to_pdf(results):
     buffer = BytesIO()
@@ -177,10 +173,9 @@ def export_all_candidates_to_pdf(results):
 
         line(f"Candidate: {cv['name']}", 16, 24)
         line(f"Score: {r['match_score']} / 100", 14, 20)
-        line(f"Experience: {cv['years_experience']} years")
+        line(f"Experience: {cv['years_experience']}")
         line(f"Seniority: {cv['seniority']}")
         line(f"File: {r['filename']}")
-        line("")
         line("Technologies:", 14, 20)
 
         for t in cv["technologies"]:
@@ -194,46 +189,35 @@ def export_all_candidates_to_pdf(results):
 
 
 # =====================================================================
-# ✅ SESSION
+# ✅ SESSION STATE
 # =====================================================================
 if "results" not in st.session_state:
     st.session_state.results = []
 
 
 # =====================================================================
-# ✅ SIDEBAR – JD INPUT
+# ✅ SIDEBAR — JD INPUT
 # =====================================================================
 st.sidebar.header("📄 Job Description")
-jd_text = st.sidebar.text_area(
-    "Paste Job Description here",
-    placeholder="Paste JD…",
-    height=300
-)
+jd_text = st.sidebar.text_area("Paste JD here:", height=300)
 
 
 # =====================================================================
-# ✅ FILE UPLOAD
+# ✅ FILE UPLOAD + ANALYZE BUTTON
 # =====================================================================
 uploaded_files = st.file_uploader(
-    "Upload CVs (PDF / DOCX):",
+    "Upload CVs (PDF/DOCX):",
     type=["pdf", "docx"],
     accept_multiple_files=True
 )
 
-analyze_btn = st.button("🚀 Analyze CVs", use_container_width=True)
-
-
-# =====================================================================
-# ✅ ANALYSIS
-# =====================================================================
-if analyze_btn:
-
+if st.button("🚀 Analyze CVs"):
     if not uploaded_files:
         st.error("Please upload at least one CV.")
         st.stop()
 
     if not jd_text.strip():
-        st.error("Please paste Job Description.")
+        st.error("Please paste a Job Description.")
         st.stop()
 
     out = []
@@ -246,17 +230,18 @@ if analyze_btn:
             )
 
             if resp.status_code != 200:
-                st.error(f"Error: {f.name} → {resp.text}")
-            else:
-                d = resp.json()
-                d["filename"] = f.name
-                out.append(d)
+                st.error(f"Error processing {f.name}: {resp.text}")
+                continue
+
+            parsed = resp.json()
+            parsed["filename"] = f.name
+            out.append(parsed)
 
     st.session_state.results = out
 
 
 # =====================================================================
-# ✅ RESULTS
+# ✅ RESULTS PRESENTATION
 # =====================================================================
 results = st.session_state.results
 
@@ -269,7 +254,6 @@ if results:
         "Name": r["cv_data"]["name"],
         "Score": r["match_score"],
         "Experience": r["cv_data"]["years_experience"],
-        "Technologies": ", ".join(r["cv_data"]["technologies"]),
     } for r in results])
 
     best = df["Score"].max()
@@ -280,8 +264,9 @@ if results:
     st.subheader("📊 Comparison Table")
     st.dataframe(df.style.apply(highlight, axis=1), use_container_width=True)
 
+
     # =================================================================
-    # ✅ CANDIDATE DETAIL
+    # ✅ CANDIDATE DETAIL (COLLAPSIBLE SECTIONS)
     # =================================================================
     st.subheader("🔍 Candidate Detail")
 
@@ -293,194 +278,180 @@ if results:
     candidate = next(r for r in results if r["filename"] == selected_file)
     cv = candidate["cv_data"]
 
-    st.markdown(f"### 👤 {cv['name']}")
-    st.write(f"**Email:** {cv['email']}")
-    st.write(f"**Phone:** {cv['phone']}")
-    st.write(f"**Experience:** {cv['years_experience']} years")
-    st.write(f"**Seniority:** {cv['seniority']}")
-    st.write(f"**Last Position:** {cv['last_position']}")
+    # PERSONAL INFO
+    with st.expander("👤 Personal Info", expanded=True):
+        st.write(f"**Name:** {cv['name']}")
+        st.write(f"**Email:** {cv['email']}")
+        st.write(f"**Phone:** {cv['phone']}")
+        st.write(f"**Experience:** {cv['years_experience']}")
+        st.write(f"**Seniority:** {cv['seniority']}")
+        st.write(f"**Last Position:** {cv['last_position']}")
 
-    st.markdown("#### 🧩 Technologies")
-    st.write(", ".join(cv["technologies"]))
+    # TECHNOLOGIES
+    with st.expander("🧩 Technologies", expanded=False):
+        st.write(", ".join(cv["technologies"]))
 
-    st.markdown("#### 🌐 Languages")
-    st.write(", ".join(cv["languages"]))
+    # LANGUAGES
+    with st.expander("🌐 Languages", expanded=False):
+        st.write(", ".join(cv["languages"]))
 
-    st.markdown("#### 📝 Summary")
-    st.info(candidate["summary"])
+    # SUMMARY
+    with st.expander("📝 Summary", expanded=False):
+        st.info(candidate["summary"])
 
 
     # =================================================================
-    # ✅ WHY THIS SCORE?
+    # ✅ AI COMMENT
     # =================================================================
-    st.subheader("🤖 Why this score?")
-    st.write(generate_ai_comment(candidate))
+    with st.expander("🤖 Why this score?", expanded=False):
+        st.write(generate_ai_comment(candidate))
 
 
     # =================================================================
     # ✅ REQUIRED SKILLS MATCH
     # =================================================================
-    st.subheader("🧩 Required Skills Match")
-
     jd_req = candidate["jd_data"]["required_skills"]
-    rows_req = []
+    rows_req = [{
+        "JD Skill": skill,
+        "Matched": "✅ Yes" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌ No"
+    } for skill in jd_req]
 
-    for skill in jd_req:
-        matched = any(skill.lower() in t.lower() for t in cv["technologies"])
-        rows_req.append({
-            "JD Skill": skill,
-            "Matched": "✅ Yes" if matched else "❌ No"
-        })
-
-    st.table(pd.DataFrame(rows_req))
+    with st.expander("🧩 Required Skills Match", expanded=False):
+        st.table(pd.DataFrame(rows_req))
 
 
     # =================================================================
     # ✅ OPTIONAL SKILLS MATCH
     # =================================================================
-    st.subheader("🧩 Optional Skills Match")
-
     jd_opt = candidate["jd_data"]["nice_to_have_skills"]
-    rows_opt = []
+    rows_opt = [{
+        "Optional Skill": skill,
+        "Matched": "✅ Yes" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌ No"
+    } for skill in jd_opt]
 
-    for skill in jd_opt:
-        matched = any(skill.lower() in t.lower() for t in cv["technologies"])
-        rows_opt.append({
-            "Optional Skill": skill,
-            "Matched": "✅ Yes" if matched else "❌ No"
-        })
-
-    st.table(pd.DataFrame(rows_opt))
+    with st.expander("🧩 Optional Skills Match", expanded=False):
+        st.table(pd.DataFrame(rows_opt))
 
 
     # =================================================================
-    # ✅ MISSING SKILLS PANEL
+    # ✅ MISSING SKILLS
     # =================================================================
-    st.subheader("❗ Missing Skills")
+    missing_required = [s for s in jd_req if not any(s.lower() in t.lower() for t in cv["technologies"])]
+    missing_optional = [s for s in jd_opt if not any(s.lower() in t.lower() for t in cv["technologies"])]
 
-    missing_required = [
-        s for s in jd_req
-        if not any(s.lower() in t.lower() for t in cv["technologies"])
-    ]
+    with st.expander("❗ Missing Skills", expanded=False):
 
-    missing_optional = [
-        s for s in jd_opt
-        if not any(s.lower() in t.lower() for t in cv["technologies"])
-    ]
+        if missing_required:
+            st.markdown("### Missing Required Skills")
+            st.warning(", ".join(missing_required))
+        else:
+            st.markdown("✅ Candidate meets all required skills!")
 
-    if missing_required:
-        st.markdown("### Missing Required Skills")
-        st.warning(", ".join(missing_required))
-    else:
-        st.markdown("✅ Candidate meets all required skills!")
-
-    if missing_optional:
-        st.markdown("### Missing Optional Skills")
-        st.info(", ".join(missing_optional))
-    else:
-        st.markdown("✅ Candidate meets all optional skills!")
+        if missing_optional:
+            st.markdown("### Missing Optional Skills")
+            st.info(", ".join(missing_optional))
+        else:
+            st.markdown("✅ Candidate meets all optional skills!")
 
 
     # =================================================================
-    # ✅ CANDIDATE COMPARISON PANEL
+    # ✅ CANDIDATE COMPARISON (SIDE-BY-SIDE)
     # =================================================================
-    st.subheader("🆚 Compare Candidates")
+    with st.expander("🆚 Compare Candidates", expanded=False):
 
-    if len(results) > 1:
-        colA, colB = st.columns(2)
-        with colA:
-            left_file = st.selectbox(
-                "Candidate A",
-                [r["filename"] for r in results],
-                key="cmp_left"
-            )
-        with colB:
-            right_file = st.selectbox(
-                "Candidate B",
-                [r["filename"] for r in results],
-                key="cmp_right"
-            )
+        if len(results) > 1:
+            colA, colB = st.columns(2)
 
-        if left_file != right_file:
-            candA = next(r for r in results if r["filename"] == left_file)
-            candB = next(r for r in results if r["filename"] == right_file)
+            with colA:
+                left_file = st.selectbox(
+                    "Candidate A",
+                    [r["filename"] for r in results],
+                    key="cmp_left"
+                )
 
-            st.markdown("### 🔄 Comparison Overview")
+            with colB:
+                right_file = st.selectbox(
+                    "Candidate B",
+                    [r["filename"] for r in results],
+                    key="cmp_right"
+                )
 
-            compare_df = pd.DataFrame([
-                {
-                    "Attribute": "Score",
-                    candA["cv_data"]["name"]: candA["match_score"],
-                    candB["cv_data"]["name"]: candB["match_score"]
-                },
-                {
-                    "Attribute": "Experience (yrs)",
-                    candA["cv_data"]["name"]: candA["cv_data"]["years_experience"],
-                    candB["cv_data"]["name"]: candB["cv_data"]["years_experience"]
-                },
-                {
-                    "Attribute": "Seniority",
-                    candA["cv_data"]["name"]: candA["cv_data"]["seniority"],
-                    candB["cv_data"]["name"]: candB["cv_data"]["seniority"]
-                },
-            ])
+            if left_file != right_file:
+                candA = next(r for r in results if r["filename"] == left_file)
+                candB = next(r for r in results if r["filename"] == right_file)
 
-            st.table(compare_df)
+                st.markdown("### 🔄 Comparison Overview")
 
+                overview = pd.DataFrame([
+                    {
+                        "Attribute": "Score",
+                        candA["cv_data"]["name"]: candA["match_score"],
+                        candB["cv_data"]["name"]: candB["match_score"]
+                    },
+                    {
+                        "Attribute": "Experience (yrs)",
+                        candA["cv_data"]["name"]: candA["cv_data"]["years_experience"],
+                        candB["cv_data"]["name"]: candB["cv_data"]["years_experience"]
+                    },
+                    {
+                        "Attribute": "Seniority",
+                        candA["cv_data"]["name"]: candA["cv_data"]["seniority"],
+                        candB["cv_data"]["name"]: candB["cv_data"]["seniority"]
+                    }
+                ])
 
-            # Missing skills comparison
-            def missing(c):
-                return [
-                    s for s in c["jd_data"]["required_skills"]
-                    if not any(s.lower() in t.lower() for t in c["cv_data"]["technologies"])
-                ]
+                st.table(overview)
 
-            st.markdown("### ❗ Missing Required Skills – Side by Side")
-            comp_rows = []
-            for skill in candidate["jd_data"]["required_skills"]:
-                comp_rows.append({
-                    "Required Skill": skill,
+                # SIDE-BY-SIDE MISSING REQUIRED SKILLS
+                st.markdown("### ❗ Missing Required Skills (Side by Side)")
+
+                def missing(c):
+                    return [
+                        s for s in c["jd_data"]["required_skills"]
+                        if not any(s.lower() in t.lower() for t in c["cv_data"]["technologies"])
+                    ]
+
+                comp_rows = [{
+                    "Skill": skill,
                     candA["cv_data"]["name"]: "❌" if skill in missing(candA) else "✅",
                     candB["cv_data"]["name"]: "❌" if skill in missing(candB) else "✅"
-                })
+                } for skill in candidate["jd_data"]["required_skills"]]
 
-            st.table(pd.DataFrame(comp_rows))
+                st.table(pd.DataFrame(comp_rows))
 
 
     # =================================================================
-    # ✅ EXPORT PANEL
+    # ✅ EXPORT PANEL (CSV / PDF)
     # =================================================================
-    st.subheader("📤 Export All Candidates")
+    with st.expander("📤 Export All Candidates", expanded=False):
 
-    export_format = st.selectbox(
-        "Choose export format:",
-        ["CSV", "PDF (multi-page summary)"],
-        key="export_format"
-    )
+        export_format = st.selectbox(
+            "Choose export format:",
+            ["CSV", "PDF (multi-page summary)"],
+            key="export_format"
+        )
 
-    if st.button("Export", use_container_width=True):
-
-        if export_format == "CSV":
-            csv_file = export_all_candidates_to_csv(results)
-            st.download_button(
-                label="Download CSV",
-                data=csv_file,
-                file_name="candidates_export.csv",
-                mime="text/csv"
-            )
-
-        elif export_format == "PDF (multi-page summary)":
-            pdf_file = export_all_candidates_to_pdf(results)
-            st.download_button(
-                label="Download PDF",
-                data=pdf_file,
-                file_name="candidates_export.pdf",
-                mime="application/pdf"
-            )
+        if st.button("Export", use_container_width=True):
+            if export_format == "CSV":
+                csv_buf = export_all_candidates_to_csv(results)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_buf,
+                    file_name="candidates_export.csv",
+                    mime="text/csv"
+                )
+            else:
+                pdf_buf = export_all_candidates_to_pdf(results)
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_buf,
+                    file_name="candidates_export.pdf",
+                    mime="application/pdf"
+                )
 
 
     # =================================================================
     # ✅ RAW DEBUG
     # =================================================================
-    with st.expander("📦 Raw JSON Response"):
+    with st.expander("📦 Raw JSON Response", expanded=False):
         st.json(candidate)
