@@ -105,42 +105,35 @@ if results:
     st.dataframe(df.style.apply(highlight_best, axis=1), use_container_width=True)
 
 
-    # ----------------------------------------------------------------
-    # ✅ CANDIDATE DETAIL
-    # ----------------------------------------------------------------
-    st.subheader("🔍 Candidate Detail")
+# ----------------------------------------------------------------
+# ✅ CANDIDATE DETAIL
+# ----------------------------------------------------------------
+st.subheader("🔍 Candidate Detail")
 
-    selected_name = st.selectbox(
-        "Select a candidate:",
-        df["Name"].tolist()
-    )
+selected_name = st.selectbox(
+    "Select a candidate:",
+    df["Name"].tolist()
+)
 
-    candidate = next(r for r in results if r["cv_data"]["name"] == selected_name)
-    c = candidate["cv_data"]
+candidate = next(r for r in results if r["cv_data"]["name"] == selected_name)
+c = candidate["cv_data"]
 
-    st.markdown(f"### 👤 {c['name']}")
-    st.write(f"**Email:** {c['email']}")
-    st.write(f"**Phone:** {c['phone']}")
-    st.write(f"**Experience:** {c['years_experience']} years")
-    st.write(f"**Seniority:** {c['seniority']}")
-    st.write(f"**Last Position:** {c['last_position']}")
+# --- Basic info ---
+st.markdown(f"### 👤 {c['name']}")
+st.write(f"**Email:** {c['email']}")
+st.write(f"**Phone:** {c['phone']}")
+st.write(f"**Experience:** {c['years_experience']} years")
+st.write(f"**Seniority:** {c['seniority']}")
+st.write(f"**Last Position:** {c['last_position']}")
 
-    st.markdown("#### 🧩 Technologies")
-    st.write(", ".join(c["technologies"]))
+st.markdown("#### 🧩 Technologies")
+st.write(", ".join(c["technologies"]))
 
-    st.markdown("#### 🌐 Languages")
-    st.write(", ".join(c["languages"]))
+st.markdown("#### 🌐 Languages")
+st.write(", ".join(c["languages"]))
 
-    st.markdown("#### 📝 Summary")
-    st.info(candidate["summary"])
-
-    # Debug detail
-    with st.expander("📦 Raw JSON Response"):
-        st.json(candidate)
-
-    st.markdown(f"### 👤 {c['name']}")
-    ...
-    st.info(candidate["summary"])
+st.markdown("#### 📝 Summary")
+st.info(candidate["summary"])
 
 
 # ----------------------------------------------------------------
@@ -153,11 +146,9 @@ details = candidate.get("details", {})
 colA, colB, colC = st.columns(3)
 
 with colA:
-    st.metric("Required Skills Match", f"{round(details.get('required_ratio', 0)*100)} %")
-
+    st.metric("Required Skills Match", f"{round(details.get('required_ratio', 0) * 100)} %")
 with colB:
-    st.metric("Optional Skills Match", f"{round(details.get('optional_ratio', 0)*100)} %")
-
+    st.metric("Optional Skills Match", f"{round(details.get('optional_ratio', 0) * 100)} %")
 with colC:
     st.metric("Experience Score", f"{round(details.get('experience_score', 0))} / 20")
 
@@ -173,13 +164,12 @@ with colE:
 # ----------------------------------------------------------------
 st.markdown("### 🧩 Skill Match Details")
 
-cv_skills_norm = candidate["cv_data"].get("technologies", [])
-jd_req = candidate["jd_data"].get("required_skills", []) if candidate["jd_data"] else []
+cv_raw = candidate["cv_data"]["technologies"]          # raw user-facing techs
+jd_req = candidate["jd_data"]["required_skills"] if candidate["jd_data"] else []
 
-# Create simplified table
 rows = []
 for skill in jd_req:
-    matched = any(skill.lower() in s.lower() for s in cv_skills_norm)
+    matched = any(skill.lower() in t.lower() for t in cv_raw)
     rows.append({
         "JD Skill": skill,
         "Matched": "✅ Yes" if matched else "❌ No",
@@ -189,7 +179,7 @@ st.table(pd.DataFrame(rows))
 
 
 # ----------------------------------------------------------------
-# ✅ DEBUG DETAILS EXPANDER
+# ✅ DEBUG DETAILS
 # ----------------------------------------------------------------
-with st.expander("🔬 Debug: Full scoring details"):
+with st.expander("🔬 Full scoring details"):
     st.json(details)
