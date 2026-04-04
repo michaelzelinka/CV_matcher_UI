@@ -16,6 +16,22 @@ BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
 st.set_page_config(page_title="AI CV Matcher", layout="wide")
 
 # =====================================================================
+# ✅ HEADER – CV ANALYZER
+# =====================================================================
+st.markdown(
+    """
+    <h1 style='font-size:36px; font-weight:700; margin-bottom:10px;'>
+        CV Analyzer
+    </h1>
+    <p style='color:grey; font-size:16px; margin-top:-6px;'>
+        Upload CVs and compare them against your Job Description.
+    </p>
+    <hr style='margin-top:20px; margin-bottom:30px; border:1px solid #e0e0e0;'>
+    """,
+    unsafe_allow_html=True
+)
+
+# =====================================================================
 # ✅ PDF GENERATOR
 # =====================================================================
 def generate_pdf(candidate):
