@@ -196,27 +196,78 @@ if results:
     st.markdown("#### 📝 Summary")
     st.info(candidate["summary"])
 
-
     # =================================================================
-    # ✅ SCORING BREAKDOWN
+    # ✅ SCORING BREAKDOWN v2.0 (FULL AI EXPLANATION)
     # =================================================================
-    st.subheader("📈 Scoring Breakdown")
-
+    st.subheader("📈 Scoring Breakdown (v2.0)")
+    
     details = candidate.get("details", {})
-
+    
+    # REAL values from v3.0 scoring
+    required_ratio = details.get("required_ratio", 0)
+    optional_ratio = details.get("optional_ratio", 0)
+    req_score = details.get("required_score", required_ratio * 60)
+    opt_score = details.get("optional_score", optional_ratio * 10)
+    exp_score = details.get("experience_score", 0)
+    sen_score = details.get("seniority_score", 0)
+    final_score = candidate["match_score"]
+    
+    # TOP METRICS
     colA, colB, colC = st.columns(3)
     with colA:
-        st.metric("Required Match", f"{round(details.get('required_ratio', 0)*100)}%")
+        st.metric("Required Match", f"{round(required_ratio * 100)}%", f"{round(req_score)}/60")
     with colB:
-        st.metric("Optional Match", f"{round(details.get('optional_ratio', 0)*100)}%")
+        st.metric("Optional Match", f"{round(optional_ratio * 100)}%", f"{round(opt_score)}/10")
     with colC:
-        st.metric("Experience Score", f"{round(details.get('experience_score', 0))}/20")
-
+        st.metric("Final Score", f"{final_score} / 100")
+    
     colD, colE = st.columns(2)
     with colD:
-        st.metric("Seniority Score", f"{round(details.get('seniority_score', 0))}/10")
+        st.metric("Experience Score", f"{round(exp_score)}/20")
     with colE:
-        st.metric("Final Score", f"{candidate['match_score']} / 100")
+        st.metric("Seniority Score", f"{round(sen_score)}/10")
+    
+    
+    # =================================================================
+    # ✅ REQUIRED SKILL SIMILARITY TABLE
+    # =================================================================
+    st.markdown("### 🧩 Required Skill Match (AI Embedding Similarity)")
+    
+    cv_norm = candidate["cv_data"].get("technologies_normalized", [])
+    jd_req = candidate["jd_data"].get("required_skills", []) if candidate["jd_data"] else []
+    
+    rows = []
+    for skill in jd_req:
+        rows.append({
+            "JD Required Skill": skill,
+            "Matched": "✅ Yes" if any(skill.lower() == s.lower() for s in cv_norm) else "❌ No",
+        })
+    
+    st.table(pd.DataFrame(rows))
+    
+    
+    # =================================================================
+    # ✅ OPTIONAL SKILL MATCH TABLE
+    # =================================================================
+    st.markdown("### 🧩 Nice-to-Have Skills (AI Matching)")
+    
+    jd_opt = candidate["jd_data"].get("nice_to_have_skills", []) if candidate["jd_data"] else []
+    
+    rows2 = []
+    for skill in jd_opt:
+        rows2.append({
+            "JD Optional Skill": skill,
+            "Matched": "✅ Yes" if any(skill.lower() == s.lower() for s in cv_norm) else "❌ No",
+        })
+    
+    st.table(pd.DataFrame(rows2))
+    
+    
+    # =================================================================
+    # ✅ AI DEBUG DETAILS (Embedding similarities)
+    # =================================================================
+    with st.expander("🔬 AI Embedding Details (Debug)"):
+        st.json(details)
 
 
     # =================================================================
