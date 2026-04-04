@@ -229,7 +229,7 @@ if st.sidebar.button("🚀 Analyze CVs", use_container_width=True):
 # =====================================================================
 results = st.session_state.results
 
-st.title("AI CV Matcher – MVP UI")
+st.title("CV Analyzer")
 
 if results:
 
