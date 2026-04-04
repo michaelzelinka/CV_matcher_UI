@@ -62,5 +62,3 @@ Tento projekt je určen pro interní testování.
 ✅ Autor
 
 Michael Zelinka – 2026
-
-<img width="432" height="628" alt="image" src="https://github.com/user-attachments/assets/b124137a-c69c-43a2-afd6-782fabbd3df7" />
