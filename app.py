@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 # =====================================================================
 BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
 
-st.set_page_config(page_title="AI CV Matcher", layout="wide")
+st.set_page_config(page_title="AI CV Match", layout="wide")
 
 # =====================================================================
 # ✅ HEADER – CV ANALYZER
