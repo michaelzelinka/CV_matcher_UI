@@ -2,82 +2,92 @@ import streamlit as st
 import requests
 import pandas as pd
 import csv
+from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from io import BytesIO
 
 
-# =====================================================================
-# ✅ BASE CONFIG
-# =====================================================================
+# ================================================================
+# ✅ CORPORATE THEME
+# ================================================================
+st.set_page_config(
+    page_title="AI CV Matcher",
+    layout="wide",
+)
+
+CORPORATE_BG = "#F5F7FA"
+CARD_BG = "#FFFFFF"
+BORDER = "1px solid #E5E7EB"
+PRIMARY = "#2563EB"
+TEXT = "#111827"
+SUBTLE = "#6B7280"
+SUCCESS = "#16A34A"
+WARN = "#D97706"
+ERROR = "#DC2626"
+
+
+# ================================================================
+# ✅ BACKEND URL
+# ================================================================
 BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
-st.set_page_config(page_title="AI CV Matcher", layout="wide")
 
 
-# =====================================================================
-# ✅ PDF GENERATORS
-# =====================================================================
-def generate_pdf(candidate):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    x = 40
-    y = height - 50
+# ================================================================
+# ✅ STYLE OVERRIDES
+# ================================================================
+st.markdown(
+    f"""
+    <style>
+        body {{
+            background-color: {CORPORATE_BG};
+        }}
+        .candidate-card {{
+            background-color: {CARD_BG};
+            padding: 18px;
+            border-radius: 10px;
+            border: 1px solid #E5E7EB;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }}
+        .candidate-card:hover {{
+            border-color: {PRIMARY};
+            box-shadow: 0 0 8px rgba(37, 99, 235, 0.15);
+        }}
+        .score-badge {{
+            padding: 4px 10px;
+            border-radius: 30px;
+            color: white;
+            font-weight: 600;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-    cv = candidate["cv_data"]
-    jd = candidate["jd_data"]
-    score = candidate["match_score"]
-    details = candidate.get("details", {})
 
-    def line(text, fontsize=12, spacing=18):
-        nonlocal y
-        c.setFont("Helvetica", fontsize)
-        c.drawString(x, y, text)
-        y -= spacing
+# ================================================================
+# ✅ HELPER FUNCTIONS
+# ================================================================
+def score_color(score):
+    if score < 25: return ERROR
+    if score < 50: return WARN
+    if score < 75: return "#EAB308"  # Yellow
+    return SUCCESS
 
-    line(f"AI CV Match Report – {cv['name']}", 16, 24)
-    line(f"Final Score: {score} / 100", 14, 20)
-    line("")
 
-    line("Candidate Info:", 14, 20)
-    line(f"Name: {cv['name']}")
-    line(f"Email: {cv['email']}")
-    line(f"Phone: {cv['phone']}")
-    line(f"Experience: {cv['years_experience']}")
-    line(f"Seniority: {cv['seniority']}")
-    line(f"Last Position: {cv['last_position']}")
-    line("")
+def score_badge(score):
+    return f"<span class='score-badge' style='background:{score_color(score)}'>{score}</span>"
 
-    line("Technologies:", 14, 20)
-    for t in cv["technologies"]:
-        line(f"• {t}")
-    line("")
 
-    line("Languages:", 14, 20)
-    for lang in cv["languages"]:
-        line(f"• {lang}")
-    line("")
-
-    if jd:
-        line("JD Required Skills:", 14, 20)
-        for s in jd["required_skills"]:
-            line(f"• {s}")
-        line("")
-
-    c.save()
-    buffer.seek(0)
-    return buffer
+def tag(text):
+    return f"<span style='background:#E5E7EB; padding:4px 8px; border-radius:6px; margin-right:4px; font-size:13px;'>{text}</span>"
 
 
 def export_all_candidates_to_csv(results):
     output = BytesIO()
     writer = csv.writer(output)
-
-    writer.writerow([
-        "Filename", "Name", "Email", "Phone",
-        "Experience", "Seniority",
-        "Technologies", "Languages", "Score"
-    ])
+    writer.writerow(["File", "Name", "Email", "Experience", "Score"])
 
     for r in results:
         cv = r["cv_data"]
@@ -85,331 +95,228 @@ def export_all_candidates_to_csv(results):
             r["filename"],
             cv["name"],
             cv["email"],
-            cv["phone"],
             cv["years_experience"],
-            cv["seniority"],
-            ", ".join(cv["technologies"]),
-            ", ".join(cv["languages"]),
-            r["match_score"]
+            r["match_score"],
         ])
-
     output.seek(0)
     return output
 
 
-def export_all_candidates_to_pdf(results):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-
-    width, height = A4
-    x = 40
-
-    for r in results:
-        cv = r["cv_data"]
-        y = height - 50
-
-        def line(text, fontsize=12, spacing=18):
-            nonlocal y
-            c.setFont("Helvetica", fontsize)
-            c.drawString(x, y, text)
-            y -= spacing
-
-        line(f"Candidate: {cv['name']}", 16, 24)
-        line(f"Score: {r['match_score']}")
-        line(f"Experience: {cv['years_experience']}")
-        line(f"Seniority: {cv['seniority']}")
-        line(f"File: {r['filename']}")
-        line("")
-        line("Technologies:", 14, 20)
-        for t in cv["technologies"]:
-            line(f"• {t}")
-
-        c.showPage()
-
-    c.save()
-    buffer.seek(0)
-    return buffer
+# ================================================================
+# ✅ SIDEBAR
+# ================================================================
+st.sidebar.title("📄 Job Description")
+jd_text = st.sidebar.text_area("Paste JD text here:", height=300)
 
 
-# =====================================================================
-# ✅ AI COMMENT
-# =====================================================================
-def generate_ai_comment(candidate):
-    d = candidate.get("details", {})
-    score = candidate.get("match_score", 0)
-
-    parts = []
-
-    if d.get("required_score", 0) == 0:
-        parts.append("Candidate does not match any required hard skills.")
-    else:
-        parts.append("Candidate matches some required skills.")
-
-    if d.get("optional_score", 0) > 0:
-        parts.append("Candidate matches several optional skills.")
-    else:
-        parts.append("Optional skills show no match.")
-
-    if d.get("experience_score", 0) == 0:
-        parts.append("Experience does not meet expectations.")
-    else:
-        parts.append("Experience contributes positively.")
-
-    if d.get("seniority_score", 0) < 0:
-        parts.append("Seniority is misaligned with the role.")
-
-    if score < 20:
-        summary = "Overall weak alignment with the role."
-    elif score < 40:
-        summary = "Partial fit."
-    elif score < 70:
-        summary = "Reasonable match."
-    else:
-        summary = "Strong match."
-
-    return summary + " " + " ".join(parts)
-
-
-# =====================================================================
-# ✅ SESSION INIT
-# =====================================================================
-if "results" not in st.session_state:
-    st.session_state.results = []
-
-
-# =====================================================================
-# ✅ SIDEBAR INPUT (JD)
-# =====================================================================
-st.sidebar.header("📄 Job Description")
-jd_text = st.sidebar.text_area("Paste JD here:", height=300)
-
-
-# =====================================================================
-# ✅ UPLOAD + ANALYZE
-# =====================================================================
-uploaded_files = st.file_uploader(
-    "Upload CVs (PDF/DOCX):",
+uploaded_files = st.sidebar.file_uploader(
+    "Upload CV files:",
     type=["pdf", "docx"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
 )
 
-if st.button("🚀 Analyze"):
+if st.sidebar.button("🚀 Analyze"):
     if not uploaded_files:
-        st.error("Please upload at least one CV.")
+        st.error("Upload at least one CV.")
         st.stop()
-
     if not jd_text.strip():
-        st.error("Please paste the Job Description.")
+        st.error("Paste a Job Description.")
         st.stop()
 
     out = []
-    with st.spinner("Analyzing…"):
+    with st.spinner("Analyzing candidates…"):
         for f in uploaded_files:
             resp = requests.post(
                 BACKEND_URL,
                 files={"file": (f.name, f.getvalue())},
-                data={"jd": jd_text}
+                data={"jd": jd_text},
             )
-            if resp.status_code != 200:
+            if resp.status_code == 200:
+                parsed = resp.json()
+                parsed["filename"] = f.name
+                out.append(parsed)
+            else:
                 st.error(f"Error processing {f.name}: {resp.text}")
-                continue
-
-            parsed = resp.json()
-            parsed["filename"] = f.name
-            out.append(parsed)
 
     st.session_state.results = out
 
 
-# =====================================================================
-# ✅ RESULTS
-# =====================================================================
-results = st.session_state.results
+# ================================================================
+# ✅ RESULTS AREA
+# ================================================================
+st.title("💼 AI CV Matcher — Corporate Edition")
 
-if results:
-    st.success("✅ Analysis complete")
+results = st.session_state.get("results", [])
 
-    # table
-    df = pd.DataFrame([{
-        "File": r["filename"],
-        "Name": r["cv_data"]["name"],
-        "Score": r["match_score"],
-        "Experience": r["cv_data"]["years_experience"],
-    } for r in results])
+if not results:
+    st.info("Upload CV files and paste a Job Description to begin.")
+    st.stop()
 
-    best = df["Score"].max()
 
-    def highlight(row):
-        return ["background-color:#d4f8d4" if row["Score"] == best else "" for _ in row]
+# ================================================================
+# ✅ LEFT: CANDIDATE GRID
+# ✅ RIGHT: CANDIDATE DETAIL PANEL
+# ================================================================
+left, right = st.columns([1, 2])
 
-    st.subheader("📊 Comparison Table")
-    st.dataframe(df.style.apply(highlight, axis=1), use_container_width=True)
 
-    # =================================================================
-    # ✅ CANDIDATE DETAIL
-    # =================================================================
-    st.subheader("🔍 Candidate Detail")
+# ================================================================
+# ✅ LEFT PANE — CANDIDATE CARDS
+# ================================================================
+with left:
+    st.subheader("Candidates")
 
-    # Map for display and internal selection
+    # Map for selecting detail
     display_map = {
         f"{r['cv_data']['name']} ({r['filename']})": r["filename"]
         for r in results
     }
 
-    selected_display = st.selectbox(
-        "Select candidate:",
-        list(display_map.keys()),
-        key="selected_candidate"
-    )
+    if "selected_candidate" not in st.session_state:
+        st.session_state.selected_candidate = list(display_map.keys())[0]
 
+    # Render cards
+    for display_name, file_id in display_map.items():
+        r = next(x for x in results if x["filename"] == file_id)
+
+        score = r["match_score"]
+        cv = r["cv_data"]
+
+        card_clicked = st.container()
+        with card_clicked:
+            st.markdown(
+                f"""
+                <div class='candidate-card'>
+                    <div style='display:flex; justify-content:space-between;'>
+                        <div>
+                            <div style='font-size:18px; font-weight:600;'>{cv['name']}</div>
+                            <div style='color:{SUBTLE}; font-size:13px;'>{cv['years_experience']} yrs • {cv['seniority'] or "N/A"}</div>
+                        </div>
+                        <div>{score_badge(score)}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        # Click → select candidate
+        if st.button(f"Select {file_id}", key=f"btn_{file_id}"):
+            st.session_state.selected_candidate = display_name
+
+
+# ================================================================
+# ✅ RIGHT PANE — CANDIDATE DETAIL
+# ================================================================
+with right:
+    selected_display = st.session_state.selected_candidate
     selected_file = display_map[selected_display]
+
     candidate = next(r for r in results if r["filename"] == selected_file)
     cv = candidate["cv_data"]
 
-    # PERSONAL INFO
-    with st.expander(f"👤 Personal Info — {selected_display}", expanded=True):
-        st.write(f"**Name:** {cv['name']}")
-        st.write(f"**Email:** {cv['email']}")
-        st.write(f"**Phone:** {cv['phone']}")
-        st.write(f"**Experience:** {cv['years_experience']}")
-        st.write(f"**Seniority:** {cv['seniority']}")
-        st.write(f"**Last Position:** {cv['last_position']}")
+    st.subheader(f"Candidate Detail — {cv['name']}")
 
-    # TECHNOLOGIES
-    with st.expander(f"🧩 Technologies — {selected_display}", expanded=False):
-        st.write(", ".join(cv["technologies"]))
+    # ==========================================
+    # HEADER SUMMARY CARD
+    # ==========================================
+    st.markdown(
+        f"""
+        <div style='background:white;padding:20px;border-radius:10px;border:1px solid #E5E7EB;margin-bottom:20px;'>
+            <div style='display:flex;justify-content:space-between;align-items:center;'>
+                <div>
+                    <div style='font-size:24px;font-weight:700;color:{TEXT};'>{cv['name']}</div>
+                    <div style='color:{SUBTLE};font-size:14px;margin-top:4px;'>{cv['seniority']} • {cv['years_experience']} yrs experience</div>
+                </div>
+                <div style='font-size:32px;'>{score_badge(candidate["match_score"])}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # LANGUAGES
-    with st.expander(f"🌐 Languages — {selected_display}", expanded=False):
-        st.write(", ".join(cv["languages"]))
+    # ==========================================
+    # TABS LAYOUT (Corporate UX)
+    # ==========================================
+    tabs = st.tabs(["Skills", "Experience", "JD Match", "Missing Skills", "Raw JSON"])
 
-    # SUMMARY
-    with st.expander(f"📝 Summary — {selected_display}", expanded=False):
-        st.info(candidate["summary"])
+    # TAB: Skills
+    with tabs[0]:
+        st.markdown("### Technologies")
+        st.markdown(" ".join(tag(t) for t in cv["technologies"]), unsafe_allow_html=True)
 
-    # WHY SCORE
-    with st.expander(f"🤖 Why this score? — {selected_display}", expanded=False):
-        st.write(generate_ai_comment(candidate))
+        st.markdown("### Languages")
+        st.markdown(" ".join(tag(l) for l in cv["languages"]), unsafe_allow_html=True)
 
-    # REQUIRED SKILL MATCH
-    jd_req = results[0]["jd_data"]["required_skills"]  # ✅ consistent JD source
-    rows_req = [{
-        "Skill": skill,
-        "Matched": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
-    } for skill in jd_req]
+    # TAB: Experience
+    with tabs[1]:
+        st.markdown("### Experience Summary")
+        st.write(f"- **Years of experience:** {cv['years_experience']}")
+        st.write(f"- **Last Position:** {cv['last_position']}")
 
-    with st.expander(f"🧩 Required Skills Match — {selected_display}", expanded=False):
-        st.table(pd.DataFrame(rows_req))
+    # TAB: JD Match
+    with tabs[2]:
+        jd_req = results[0]["jd_data"]["required_skills"]
+        jd_opt = results[0]["jd_data"]["nice_to_have_skills"]
 
-    # OPTIONAL SKILL MATCH
-    jd_opt = results[0]["jd_data"]["nice_to_have_skills"]
-    rows_opt = [{
-        "Skill": skill,
-        "Matched": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
-    } for skill in jd_opt]
+        st.markdown("### Required Skills Match")
+        rows = [{
+            "Skill": skill,
+            "Matched": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
+        } for skill in jd_req]
+        st.table(pd.DataFrame(rows))
 
-    with st.expander(f"🧩 Optional Skills Match — {selected_display}", expanded=False):
+        st.markdown("### Optional Skills Match")
+        rows_opt = [{
+            "Skill": skill,
+            "Matched": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
+        } for skill in jd_opt]
         st.table(pd.DataFrame(rows_opt))
 
-    # MISSING SKILLS
-    with st.expander(f"❗ Missing Skills — {selected_display}", expanded=False):
+    # TAB: Missing Skills
+    with tabs[3]:
         missing_req = [s for s in jd_req if not any(s.lower() in t.lower() for t in cv["technologies"])]
         missing_opt = [s for s in jd_opt if not any(s.lower() in t.lower() for t in cv["technologies"])]
 
+        st.markdown("### Missing Required Skills")
         if missing_req:
-            st.warning("Missing Required: " + ", ".join(missing_req))
+            st.markdown(" ".join(tag(s) for s in missing_req), unsafe_allow_html=True)
         else:
-            st.success("Candidate meets all required skills.")
+            st.success("All required skills matched!")
 
+        st.markdown("### Missing Optional Skills")
         if missing_opt:
-            st.info("Missing Optional: " + ", ".join(missing_opt))
+            st.markdown(" ".join(tag(s) for s in missing_opt), unsafe_allow_html=True)
         else:
-            st.success("Candidate meets all optional skills.")
+            st.info("All optional skills matched!")
 
-    # =================================================================
-    # ✅ COMPARE CANDIDATES (FULLY FIXED)
-    # =================================================================
-    with st.expander("🆚 Compare Candidates", expanded=False):
-
-        if len(results) > 1:
-
-            compare_map = {
-                f"{r['cv_data']['name']} ({r['filename']})": r["filename"]
-                for r in results
-            }
-
-            colA, colB = st.columns(2)
-            with colA:
-                left_disp = st.selectbox("Candidate A:", list(compare_map.keys()), key="cmpA")
-            with colB:
-                right_disp = st.selectbox("Candidate B:", list(compare_map.keys()), key="cmpB")
-
-            if left_disp != right_disp:
-                candA = next(r for r in results if r["filename"] == compare_map[left_disp])
-                candB = next(r for r in results if r["filename"] == compare_map[right_disp])
-
-                st.markdown("### 🔄 Comparison Overview")
-
-                overview = pd.DataFrame([
-                    {
-                        "Attribute": "Score",
-                        candA["cv_data"]["name"]: candA["match_score"],
-                        candB["cv_data"]["name"]: candB["match_score"]
-                    },
-                    {
-                        "Attribute": "Experience",
-                        candA["cv_data"]["name"]: candA["cv_data"]["years_experience"],
-                        candB["cv_data"]["name"]: candB["cv_data"]["years_experience"]
-                    },
-                    {
-                        "Attribute": "Seniority",
-                        candA["cv_data"]["name"]: candA["cv_data"]["seniority"],
-                        candB["cv_data"]["name"]: candB["cv_data"]["seniority"]
-                    },
-                ])
-                st.table(overview)
-
-                # JD (global)
-                jd_req_global = results[0]["jd_data"]["required_skills"]
-
-                def has_skill(cv_skills, skill):
-                    return any(skill.lower() in s.lower() for s in cv_skills)
-
-                comp_rows = [{
-                    "Skill": skill,
-                    candA["cv_data"]["name"]: "✅" if has_skill(candA["cv_data"]["technologies"], skill) else "❌",
-                    candB["cv_data"]["name"]: "✅" if has_skill(candB["cv_data"]["technologies"], skill) else "❌"
-                } for skill in jd_req_global]
-
-                st.markdown("### ❗ Required Skills – Side by Side")
-                st.table(pd.DataFrame(comp_rows))
-
-    # =================================================================
-    # ✅ EXPORT PANEL
-    # =================================================================
-    with st.expander("📤 Export All Candidates", expanded=False):
-        export_format = st.selectbox("Export format:", ["CSV", "PDF"], key="exp_fmt")
-
-        if st.button("Export Now", key="exp_btn", use_container_width=True):
-            if export_format == "CSV":
-                file = export_all_candidates_to_csv(results)
-                st.download_button(
-                    "Download CSV",
-                    file,
-                    file_name="candidates.csv",
-                    mime="text/csv"
-                )
-            else:
-                file = export_all_candidates_to_pdf(results)
-                st.download_button(
-                    "Download PDF",
-                    file,
-                    file_name="candidates.pdf",
-                    mime="application/pdf"
-                )
-
-    # =================================================================
-    # ✅ RAW JSON
-    # =================================================================
-    with st.expander(f"📦 Raw JSON — {selected_display}", expanded=False):
+    # TAB: Raw JSON
+    with tabs[4]:
         st.json(candidate)
+
+
+# ================================================================
+# ✅ GLOBAL EXPORT
+# ================================================================
+st.divider()
+
+st.subheader("📤 Export All Candidates")
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Download CSV Export"):
+        csv_file = export_all_candidates_to_csv(results)
+        st.download_button(
+            "Download CSV",
+            csv_file,
+            file_name="candidates.csv",
+            mime="text/csv"
+        )
+with col2:
+    if st.button("Download PDF Summary"):
+        pdf_file = export_all_candidates_to_pdf(results)
+        st.download_button(
+            "Download PDF",
+            pdf_file,
+            file_name="candidates.pdf",
+            mime="application/pdf"
+        )
