@@ -4,6 +4,8 @@ import pandas as pd
 import csv
 from io import BytesIO
 
+import plotly.graph_objects as go
+
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
@@ -14,6 +16,53 @@ from reportlab.lib.pagesizes import A4
 BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
 
 st.set_page_config(page_title="CV Analyzer", layout="wide")
+
+
+# =====================================================================
+# ✅ VISUALIZATION HELPERS
+# =====================================================================
+def render_score_donut(details):
+    labels = ["String match", "Embedding match", "Experience", "Seniority"]
+    values = [
+        details["string_score"],
+        details["embedding_score"],
+        details["experience_score"],
+        details["seniority_score"]
+    ]
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.55)])
+    fig.update_layout(title="Score Breakdown", height=350)
+    return fig
+
+
+def render_breakdown_cards(details):
+    st.markdown("### 📊 Score Breakdown")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("String match", f"{details['string_score']:.1f}/40")
+        st.metric("Experience", f"{details['experience_score']:.1f}/10")
+    with c2:
+        st.metric("Embedding match", f"{details['embedding_score']:.1f}/40")
+        st.metric("Seniority", f"{details['seniority_score']:.1f}/10")
+
+
+def render_skill_match(cv_skills, jd_required):
+    matched = []
+    missing = []
+
+    cv_lower = {s.lower() for s in cv_skills}
+
+    for s in jd_required:
+        if s.lower() in cv_lower:
+            matched.append(s)
+        else:
+            missing.append(s)
+
+    df = pd.DataFrame({
+        "Skill": matched + missing,
+        "Status": ["✅ Match"] * len(matched) + ["❌ Missing"] * len(missing)
+    })
+
+    st.dataframe(df, hide_index=True)
 
 
 # =====================================================================
@@ -28,7 +77,6 @@ def generate_pdf(candidate):
     cv = candidate["cv_data"]
     jd = candidate["jd_data"]
     score = candidate["match_score"]
-    details = candidate.get("details", {})
 
     def ln(t, size=12, step=18):
         nonlocal y
@@ -234,17 +282,37 @@ if results:
 
     st.subheader("🔍 Candidate Detail")
 
-    # Select candidate by readable name
-    display_names = {
-        f"{r['cv_data']['name']} ({r['filename']})": r for r in results
-    }
+    display_names = {f"{r['cv_data']['name']} ({r['filename']})": r for r in results}
 
     selected_display = st.selectbox("Select candidate:", list(display_names.keys()))
     candidate = display_names[selected_display]
+
     cv = candidate["cv_data"]
+    jd = candidate["jd_data"]
+    score = candidate["match_score"]
+    details = candidate["details"]
+
+    # ✅ TOP SCORE
+    st.metric("Match Score", f"{score} %")
+
+    # ✅ VISUAL BREAKDOWN — donut
+    st.plotly_chart(
+        render_score_donut(details),
+        use_container_width=True
+    )
+
+    # ✅ VISUAL BREAKDOWN — cards
+    render_breakdown_cards(details)
+
+    # ✅ SKILL MATCH TABLE
+    st.subheader("✅ Skill Match Overview")
+    render_skill_match(
+        cv_skills=cv["technologies_normalized"],
+        jd_required=jd["required_skills"]
+    )
 
     # -- Personal Info --
-    with st.expander("👤 Personal Info", expanded=True):
+    with st.expander("👤 Personal Info", expanded=False):
         st.write(f"**Name:** {cv['name']}")
         st.write(f"**Email:** {cv['email']}")
         st.write(f"**Phone:** {cv['phone']}")
@@ -264,12 +332,8 @@ if results:
     with st.expander("📝 Summary"):
         st.info(candidate["summary"])
 
-    # -- Why this score --
-    with st.expander("🤖 Why this score?"):
-        st.write(generate_ai_comment(candidate))
-
     # -- Required Skills --
-    jd_req = results[0]["jd_data"]["required_skills"]
+    jd_req = jd["required_skills"]
     rows_req = [{
         "Skill": skill,
         "Match": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
@@ -279,7 +343,7 @@ if results:
         st.table(pd.DataFrame(rows_req))
 
     # -- Optional Skills --
-    jd_opt = results[0]["jd_data"]["nice_to_have_skills"]
+    jd_opt = jd["nice_to_have_skills"]
     rows_opt = [{
         "Skill": skill,
         "Match": "✅" if any(skill.lower() in t.lower() for t in cv["technologies"]) else "❌"
@@ -309,7 +373,6 @@ if results:
             if left != right:
                 A = display_names[left]
                 B = display_names[right]
-                jd_req_global = results[0]["jd_data"]["required_skills"]
 
                 st.write("### Comparison Overview")
                 comp_df = pd.DataFrame([
@@ -320,16 +383,6 @@ if results:
                     },
                 ])
                 st.table(comp_df)
-
-                st.write("### Required Skills Side by Side")
-                rows = []
-                for s in jd_req_global:
-                    rows.append({
-                        "Skill": s,
-                        A["cv_data"]["name"]: "✅" if any(s.lower() in t.lower() for t in A["cv_data"]["technologies"]) else "❌",
-                        B["cv_data"]["name"]: "✅" if any(s.lower() in t.lower() for t in B["cv_data"]["technologies"]) else "❌",
-                    })
-                st.table(pd.DataFrame(rows))
 
     # -- Export --
     with st.expander("📤 Export All Candidates"):
