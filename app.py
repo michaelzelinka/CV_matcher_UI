@@ -290,7 +290,8 @@ if results:
     cv = candidate["cv_data"]
     jd = candidate["jd_data"]
     score = candidate["match_score"]
-    
+
+    # ✅ Safe fallback for missing details
     details = (
         candidate.get("details")
         or candidate.get("score_details")
@@ -301,7 +302,6 @@ if results:
             "seniority_score": 0,
         }
     )
-
 
     # ✅ TOP SCORE
     st.metric("Match Score", f"{score} %")
@@ -315,10 +315,17 @@ if results:
     # ✅ VISUAL BREAKDOWN — cards
     render_breakdown_cards(details)
 
-    # ✅ SKILL MATCH TABLE
+    # ✅ SKILL MATCH TABLE (with safe fallback)
     st.subheader("✅ Skill Match Overview")
+
+    cv_skills = (
+        cv.get("technologies_normalized")
+        or cv.get("technologies")
+        or []
+    )
+
     render_skill_match(
-        cv_skills=cv["technologies_normalized"],
+        cv_skills=cv_skills,
         jd_required=jd["required_skills"]
     )
 
