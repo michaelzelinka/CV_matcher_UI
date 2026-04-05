@@ -287,20 +287,20 @@ if results:
     selected_display = st.selectbox("Select candidate:", list(display_names.keys()))
     candidate = display_names[selected_display]
 
-    cv = candidate["cv_data"]
-    jd = candidate["jd_data"]
-    score = candidate["match_score"]
-    
-        details = (
-        candidate.get("details")
-        or candidate.get("score_details")
-        or {
-            "string_score": 0,
-            "embedding_score": 0,
-            "experience_score": 0,
-            "seniority_score": 0,
-        }
-    )
+   cv = candidate["cv_data"]
+jd = candidate["jd_data"]
+score = candidate["match_score"]
+
+details = (
+    candidate.get("details")
+    or candidate.get("score_details")
+    or {
+        "string_score": 0,
+        "embedding_score": 0,
+        "experience_score": 0,
+        "seniority_score": 0,
+    }
+)
 
 
     # ✅ TOP SCORE
