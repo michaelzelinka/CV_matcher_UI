@@ -287,7 +287,7 @@ if results:
     selected_display = st.selectbox("Select candidate:", list(display_names.keys()))
     candidate = display_names[selected_display]
 
-       cv = candidate["cv_data"]
+    cv = candidate["cv_data"]
     jd = candidate["jd_data"]
     score = candidate["match_score"]
     
