@@ -291,12 +291,16 @@ if results:
     jd = candidate["jd_data"]
     score = candidate["match_score"]
     
-    details = candidate.get("details", {
-        "string_score": 0,
-        "embedding_score": 0,
-        "experience_score": 0,
-        "seniority_score": 0,
-    })
+        details = (
+        candidate.get("details")
+        or candidate.get("score_details")
+        or {
+            "string_score": 0,
+            "embedding_score": 0,
+            "experience_score": 0,
+            "seniority_score": 0,
+        }
+    )
 
 
     # ✅ TOP SCORE
