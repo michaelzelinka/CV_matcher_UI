@@ -19,10 +19,12 @@ st.set_page_config(page_title="CV Analyzer", layout="wide")
 
 
 # =====================================================================
-# ✅ VISUALIZATION HELPERS
+# ✅ VISUAL TOOLS
 # =====================================================================
 def render_score_donut(details):
-    if not details or all(v == 0 for v in details.values()):
+    if not details:
+        return None
+    if sum(details.values()) == 0:
         return None
 
     labels = ["String match", "Embedding match", "Experience", "Seniority"]
@@ -30,9 +32,12 @@ def render_score_donut(details):
         details.get("string_score", 0),
         details.get("embedding_score", 0),
         details.get("experience_score", 0),
-        details.get("seniority_score", 0)
+        details.get("seniority_score", 0),
     ]
-    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.55)])
+
+    fig = go.Figure(
+        data=[go.Pie(labels=labels, values=values, hole=0.55)]
+    )
     fig.update_layout(title="Score Breakdown", height=350)
     return fig
 
@@ -40,9 +45,11 @@ def render_score_donut(details):
 def render_breakdown_cards(details):
     st.markdown("### 📊 Score Breakdown")
     c1, c2 = st.columns(2)
+
     with c1:
         st.metric("String match", f"{details.get('string_score', 0):.1f}/40")
         st.metric("Experience", f"{details.get('experience_score', 0):.1f}/10")
+
     with c2:
         st.metric("Embedding match", f"{details.get('embedding_score', 0):.1f}/40")
         st.metric("Seniority", f"{details.get('seniority_score', 0):.1f}/10")
@@ -54,11 +61,11 @@ def render_skill_match(cv_skills, jd_required):
 
     cv_lower = {s.lower() for s in cv_skills}
 
-    for s in jd_required:
-        if s.lower() in cv_lower:
-            matched.append(s)
+    for skill in jd_required:
+        if skill.lower() in cv_lower:
+            matched.append(skill)
         else:
-            missing.append(s)
+            missing.append(skill)
 
     df = pd.DataFrame({
         "Skill": matched + missing,
@@ -69,13 +76,12 @@ def render_skill_match(cv_skills, jd_required):
 
 
 # =====================================================================
-# ✅ PDF GENERATOR
+# ✅ PDF GENERATION
 # =====================================================================
 def generate_pdf(candidate):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    x, y = 40, height - 50
+    x, y = 40, A4[1] - 50
 
     cv = candidate["cv_data"]
     jd = candidate["jd_data"]
@@ -122,38 +128,31 @@ def generate_pdf(candidate):
 
 
 # =====================================================================
-# ✅ CSV EXPORT
+# ✅ EXPORT UTILITIES
 # =====================================================================
 def export_all_candidates_to_csv(results):
-    output = BytesIO()
-    writer = csv.writer(output)
-
+    buffer = BytesIO()
+    writer = csv.writer(buffer)
     writer.writerow(["Filename", "Name", "Experience", "Seniority", "Score"])
+
     for r in results:
         cv = r["cv_data"]
         writer.writerow([
-            r["filename"],
-            cv["name"],
-            cv["years_experience"],
-            cv["seniority"],
-            r["match_score"]
+            r["filename"], cv["name"], cv["years_experience"],
+            cv["seniority"], r["match_score"],
         ])
 
-    output.seek(0)
-    return output
+    buffer.seek(0)
+    return buffer
 
 
-# =====================================================================
-# ✅ PDF EXPORT
-# =====================================================================
 def export_all_candidates_to_pdf(results):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
 
     for r in results:
         cv = r["cv_data"]
-        y = A4[1] - 50
-        x = 40
+        x, y = 40, A4[1] - 50
 
         def ln(t, size=12, step=18):
             nonlocal y
@@ -178,20 +177,21 @@ def export_all_candidates_to_pdf(results):
 
 
 # =====================================================================
-# ✅ SESSION STATE
+# ✅ SESSION
 # =====================================================================
 if "results" not in st.session_state:
     st.session_state.results = []
 
 
 # =====================================================================
-# ✅ SIDEBAR (JD input) — HOTFIX: KEY MUST BE SET
+# ✅ SIDEBAR + HOTFIX
 # =====================================================================
 st.sidebar.header("📄 Job Description")
+
 jd_text = st.sidebar.text_area(
     "Paste JD text here:",
     height=280,
-    key="jd_input"       # ✅ HOTFIX: explicit key prevents Streamlit caching bug
+    key="jd_input"     # prevents Streamlit caching issue
 )
 
 uploaded_files = st.sidebar.file_uploader(
@@ -202,18 +202,19 @@ uploaded_files = st.sidebar.file_uploader(
 
 if st.sidebar.button("🚀 Analyze CVs", use_container_width=True):
 
-    # ✅ 🔥 HOTFIX: Show JD debug info
+    # ✅ Debug
     st.write("DEBUG_JD:", repr(jd_text))
 
+    # ✅ HOTFIX — JD is required
     if not jd_text or jd_text.strip() == "":
-        st.error("❌ JD is empty — backend would receive empty JD. Add job description.")
+        st.error("❌ JD is empty — please paste job description.")
         st.stop()
 
     if not uploaded_files:
         st.error("Upload at least one CV.")
         st.stop()
 
-    out = []
+    results = []
     with st.spinner("Analyzing..."):
         for f in uploaded_files:
             try:
@@ -228,20 +229,19 @@ if st.sidebar.button("🚀 Analyze CVs", use_container_width=True):
                 st.stop()
 
             if resp.status_code == 200:
-                p = resp.json()
-                p["filename"] = f.name
-                out.append(p)
+                data = resp.json()
+                data["filename"] = f.name
+                results.append(data)
             else:
-                st.error(f"Error with {f.name}: {resp.text}")
+                st.error(f"Error: {resp.text}")
 
-    st.session_state.results = out
+    st.session_state.results = results
 
 
 # =====================================================================
-# ✅ RESULTS UI
+# ✅ RESULTS PAGE
 # =====================================================================
 results = st.session_state.results
-
 st.title("CV Analyzer")
 
 if results:
@@ -256,47 +256,49 @@ if results:
         }
         for r in results
     ])
-
     st.subheader("📊 Comparison Table")
     st.dataframe(df, use_container_width=True)
 
     st.subheader("🔍 Candidate Detail")
+    choices = {f"{r['cv_data']['name']} ({r['filename']})": r for r in results}
 
-    display_names = {f"{r['cv_data']['name']} ({r['filename']})": r for r in results}
-    selected_display = st.selectbox("Select candidate:", list(display_names.keys()))
-    candidate = display_names[selected_display]
+    selected = st.selectbox("Select candidate:", list(choices.keys()))
+    candidate = choices[selected]
 
     cv = candidate["cv_data"]
     jd = candidate.get("jd_data")
-    score = candidate["match_score"]
     details = candidate.get("details", {})
+    score = candidate["match_score"]
 
-    # ✅ TOP SCORE
+    # ✅ Score
     st.metric("Match Score", f"{score} %")
 
-    # ✅ Donut
     donut = render_score_donut(details)
     if donut:
         st.plotly_chart(donut, use_container_width=True)
 
-    # ✅ Breakdown cards
     if details:
         render_breakdown_cards(details)
 
-    # ✅ SKILL MATCH TABLE
+    # ✅ Skills
     st.subheader("✅ Skill Match Overview")
-
     cv_skills = cv.get("technologies_normalized") or cv.get("technologies") or []
 
     if jd:
-        render_skill_match(
-            cv_skills=cv_skills,
-            jd_required=jd["required_skills"]
-        )
+        render_skill_match(cv_skills, jd["required_skills"])
     else:
         st.warning("JD not provided.")
 
-    # --- Personal Info ---
+    # ✅ Summary block — FIXED
+    with st.expander("📝 Summary"):
+        summary = (
+            candidate.get("summary")
+            or cv.get("summary")
+            or "No summary available."
+        )
+        st.info(summary)
+
+    # ✅ Personal Info
     with st.expander("👤 Personal Info", expanded=False):
         st.write(f"**Name:** {cv['name']}")
         st.write(f"**Email:** {cv['email']}")
@@ -305,34 +307,16 @@ if results:
         st.write(f"**Seniority:** {cv['seniority']}")
         st.write(f"**Last Position:** {cv['last_position']}")
 
-    # --- Technologies ---
-    with st.expander("🧩 Technologies"):
-        st.write(", ".join(cv["technologies"]))
-
-    # --- Languages ---
-    with st.expander("🌐 Languages"):
-        st.write(", ".join(cv["languages"]))
-
-    # --- Summary ---
-    with st.expander("📝 Summary"):
-    summary = candidate.get("summary") \
-              or candidate["cv_data"].get("summary") \
-              or "No summary available."
-    st.info(summary)
-
-    # --- Export ---
+    # ✅ Export
     with st.expander("📤 Export All Candidates"):
         fmt = st.selectbox("Export format:", ["CSV", "PDF"])
         if st.button("Export Now"):
             if fmt == "CSV":
                 csv_file = export_all_candidates_to_csv(results)
-                st.download_button("Download CSV", csv_file,
-                                   file_name="candidates.csv", mime="text/csv")
+                st.download_button("Download CSV", csv_file, file_name="candidates.csv")
             else:
                 pdf_file = export_all_candidates_to_pdf(results)
-                st.download_button("Download PDF", pdf_file,
-                                   file_name="candidates.pdf", mime="application/pdf")
+                st.download_button("Download PDF", pdf_file, file_name="candidates.pdf")
 
-    # --- Raw JSON ---
     with st.expander("📦 Raw JSON"):
         st.json(candidate)
