@@ -315,7 +315,10 @@ if results:
 
     # --- Summary ---
     with st.expander("📝 Summary"):
-        st.info(cv["summary"])
+    summary = candidate.get("summary") \
+              or candidate["cv_data"].get("summary") \
+              or "No summary available."
+    st.info(summary)
 
     # --- Export ---
     with st.expander("📤 Export All Candidates"):
