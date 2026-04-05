@@ -290,7 +290,14 @@ if results:
     cv = candidate["cv_data"]
     jd = candidate["jd_data"]
     score = candidate["match_score"]
-    details = candidate["details"]
+    
+    details = candidate.get("details", {
+        "string_score": 0,
+        "embedding_score": 0,
+        "experience_score": 0,
+        "seniority_score": 0,
+    })
+
 
     # ✅ TOP SCORE
     st.metric("Match Score", f"{score} %")
