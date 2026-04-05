@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 # =====================================================================
 # ✅ BACKEND URL
 # =====================================================================
-BACKEND_URL = "https://cv-parser-aewt.onrender.com/parse"
+BACKEND_URL = "https://cvparser-production-b611.up.railway.app"
 
 st.set_page_config(page_title="CV Analyzer", layout="wide")
 
